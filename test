@@ -160,14 +160,14 @@
             <header class="text-center mb-8 relative z-10">
                 <div class="text-[#8a1c1c] text-4xl mb-2 opacity-80">⚜</div>
                 <h1 class="text-5xl md:text-6xl text-[#c5a059] uppercase tracking-widest" style="text-shadow: 0 4px 10px rgba(0,0,0,0.8);">Grimório Beyonder</h1>
-                <p class="text-stone-500 italic mt-2 text-lg">"Somos Guardiões, mas também um bando de miseráveis lutando contra ameaças e a prórpia loucura"</p>
+                <p class="text-stone-500 italic mt-2 text-lg">"Somos Guardiões, mas também um bando de miseráveis lutando contra ameaças e a própria loucura"</p>
                 <div class="h-px w-full bg-gradient-to-r from-transparent via-[#c5a059] to-transparent opacity-30 my-6"></div>
             </header>
 
             <!-- TABS DE NAVEGAÇÃO -->
             <div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('page1')">👁️ Perfil & Atributos</button>
-                <button class="tab-btn" onclick="switchTab('page2')">🔮 Misticismo & Arsenal</button>
+                <button class="tab-btn active" onclick="switchTab('page1', event)">👁️ Perfil & Atributos</button>
+                <button class="tab-btn" onclick="switchTab('page2', event)">🔮 Misticismo & Arsenal</button>
             </div>
 
             <!-- PÁGINA 1: ATRIBUTOS E PERÍCIAS -->
@@ -266,6 +266,10 @@
                                 <span>Ava(+5)</span>
                             </div>
                         </h3>
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
+                            <input type="text" id="skillSearch" class="flex-1 text-xs bg-black/30 border border-stone-700 rounded px-2 py-1 focus:border-[#c5a059]" placeholder="Filtrar perícias..." oninput="filterSkills(); saveLocal()">
+                            <button type="button" class="text-[10px] uppercase tracking-widest text-stone-400 border border-stone-700 rounded px-2 py-1 hover:border-[#c5a059] hover:text-[#c5a059]" onclick="clearSkillSearch()">Limpar</button>
+                        </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0" id="skillsContainer"></div>
                     </div>
                 </section>
@@ -412,12 +416,14 @@
     ];
 
     // --- TABS LOGIC ---
-    function switchTab(tabId) {
+    function switchTab(tabId, event) {
         document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
         
         document.getElementById(tabId).classList.add('active');
-        event.target.classList.add('active');
+        if (event && event.target) {
+            event.target.classList.add('active');
+        }
     }
 
     // --- 2. RENDERIZAÇÃO ---
@@ -454,6 +460,32 @@
                 </div>`;
             });
             skillContainer.innerHTML = html;
+        }
+    }
+
+    function normalizeText(text) {
+        return text
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function filterSkills() {
+        const query = normalizeText(document.getElementById('skillSearch')?.value || '');
+        skillsList.forEach(s => {
+            const row = document.getElementById(`row_${s.id}`);
+            if (!row) return;
+            const match = normalizeText(s.name).includes(query) || normalizeText(s.attr).includes(query);
+            row.style.display = match ? '' : 'none';
+        });
+    }
+
+    function clearSkillSearch() {
+        const input = document.getElementById('skillSearch');
+        if (input) {
+            input.value = '';
+            filterSkills();
+            saveLocal();
         }
     }
 
@@ -526,6 +558,7 @@
                 });
             }
             calculateAll();
+            filterSkills();
         } catch(e) { console.error("Erro load", e); }
     }
 
@@ -534,12 +567,15 @@
     }
 
     function saveToFile() {
-        const data = localStorage.getItem('lom_v15_grim_osdm');
+        saveLocal();
+        const data = localStorage.getItem('lom_v15_grim_osdm') || '{}';
         const blob = new Blob([data], {type: 'application/json'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Grimorio_${document.getElementById('name').value}.json`;
+        const rawName = document.getElementById('name').value || 'Personagem';
+        const safeName = rawName.trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
+        a.download = `Grimorio_${safeName || 'Personagem'}.json`;
         a.click();
     }
 
@@ -548,8 +584,17 @@
         if(!file) return;
         const reader = new FileReader();
         reader.onload = function(ev) {
-            localStorage.setItem('lom_v15_grim_osdm', ev.target.result);
-            location.reload();
+            try {
+                const parsed = JSON.parse(ev.target.result);
+                if (!parsed || typeof parsed !== 'object') {
+                    throw new Error('Formato inválido');
+                }
+                localStorage.setItem('lom_v15_grim_osdm', JSON.stringify(parsed));
+                location.reload();
+            } catch (error) {
+                alert('Arquivo inválido. Verifique se é um JSON exportado da ficha.');
+                console.error(error);
+            }
         }
         reader.readAsText(file);
     }
